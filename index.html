@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+</head>
+<body>
+<title>Cowboylike</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Zilla+Slab:wght@600;700&display=swap">
+<style>
+  /* One full-screen stage: the game canvas, with a saloon-sign loading card on top until the engine boots. Single dark look, like the game. */
+  :root {
+    --ink: #120a04;
+    --plank: #2a170a;
+    --brass: #ffc23a;
+    --sign: #ffcf6a;
+    --paper: #f3e2c0;
+    --rust: #8a5a2a;
+    --display: "Rye", "Rockwell", Georgia, serif;
+    --body: "Zilla Slab", "Rockwell", Georgia, serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--body);
+    overflow: hidden;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  #canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    outline: none;
+  }
+  #loader {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background:
+      radial-gradient(ellipse at 50% 120%, #6b2a10 0%, transparent 60%),
+      linear-gradient(#1c0f06, var(--ink));
+    z-index: 2;
+  }
+  .card {
+    display: grid;
+    gap: 18px;
+    justify-items: center;
+    text-align: center;
+    width: min(560px, 100%);
+  }
+  h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(42px, 9vw, 92px);
+    line-height: 1;
+    color: var(--sign);
+    text-shadow: 0 4px 0 #3a1c08, 0 0 24px rgba(255, 160, 60, 0.25);
+    text-wrap: balance;
+  }
+  .tag {
+    margin: 0;
+    font-size: clamp(16px, 2.6vw, 22px);
+    letter-spacing: 0.04em;
+  }
+  .bar {
+    width: 100%;
+    height: 18px;
+    border: 3px solid var(--rust);
+    border-radius: 6px;
+    background: var(--plank);
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    width: 0%;
+    background: repeating-linear-gradient(90deg, var(--brass) 0 18px, #e0a020 18px 22px);
+    transition: width 0.2s ease-out;
+  }
+  #status {
+    margin: 0;
+    min-height: 1.4em;
+    font-size: 17px;
+    color: var(--brass);
+    font-variant-numeric: tabular-nums;
+  }
+  .tip {
+    margin: 0;
+    max-width: 46ch;
+    font-size: 15px;
+    line-height: 1.45;
+    opacity: 0.75;
+  }
+  #loader.error #status { color: #ff8a7a; }
+  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+
+<canvas id="canvas" tabindex="0">Your browser can't show the game canvas.</canvas>
+
+<div id="loader" role="status" aria-live="polite">
+  <div class="card">
+    <h1>Cowboylike</h1>
+    <p class="tag">Kill the dead. Get paid. Ride on.</p>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <p id="status">Saddling up...</p>
+    <p class="tip">Hold your tablet sideways. Left thumb moves, right thumb fires, jumps and dashes. FIRE aims at the closest enemy for you.</p>
+  </div>
+</div>
+
+<script>
+  // The engine is published in three chunks (each file must stay under the
+  // artifact size limit). When the Godot loader asks for index.wasm, stitch
+  // the chunks back together and hand it one response.
+  (function () {
+    const PARTS = ["engine.part0.wasm", "engine.part1.wasm", "engine.part2.wasm"];
+    const realFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      if (/index\.pck(\?|$)/.test(url)) {
+        // The game data is published under a served file extension.
+        return realFetch("gamedata.pck.wasm");
+      }
+      if (!/index\.wasm(\?|$)/.test(url)) {
+        return realFetch(input, init);
+      }
+      const buffers = [];
+      for (const [i, part] of PARTS.entries()) {
+        document.getElementById("status").textContent = "Loading the engine (" + (i + 1) + " of " + PARTS.length + ")...";
+        document.getElementById("fill").style.width = Math.round((i / PARTS.length) * 80) + "%";
+        const res = await realFetch(part);
+        if (!res.ok) {
+          throw new Error("Couldn't load " + part + " (" + res.status + ")");
+        }
+        buffers.push(await res.arrayBuffer());
+      }
+      const blob = new Blob(buffers, { type: "application/wasm" });
+      return new Response(blob, {
+        status: 200,
+        headers: { "Content-Type": "application/wasm", "Content-Length": String(blob.size) },
+      });
+    };
+  })();
+</script>
+<script src="index.js"></script>
+<script>
+  (function () {
+    const loader = document.getElementById("loader");
+    const fill = document.getElementById("fill");
+    const status = document.getElementById("status");
+    const config = {
+      args: [],
+      canvasResizePolicy: 2,
+      executable: "index",
+      experimentalVK: false,
+      fileSizes: { "index.pck": 7394892, "index.wasm": 39514754 },
+      focusCanvas: true,
+      gdextensionLibs: [],
+      ensureCrossOriginIsolationHeaders: false,
+      emscriptenPoolSize: 8,
+      godotPoolSize: 4,
+    };
+    const fail = (err) => {
+      console.error(err);
+      loader.classList.add("error");
+      status.textContent = "The game couldn't start: " + (err && err.message ? err.message : err) + ". Try reloading the page.";
+      document.querySelector(".tip").textContent = "Details for Claude: " + navigator.userAgent + " | WebGL2: " + Engine.isWebGLAvailable(2) + " | secure: " + window.isSecureContext;
+    };
+    // The feature check can report false negatives inside the artifact's
+    // sandboxed frame (e.g. "Secure Context"), so it only warns; the real
+    // start attempt decides.
+    const missing = Engine.getMissingFeatures({ threads: false });
+    if (missing.length) {
+      console.warn("Engine feature check:", missing);
+      document.querySelector(".tip").textContent = "Starting anyway. The browser check flagged: " + missing.map((m) => m.split(" - ")[0]).join(", ") + ".";
+    }
+    const engine = new Engine(config);
+    engine.startGame({
+      onProgress: function (current, total) {
+        if (current > 0 && total > 0) {
+          const pct = Math.min(100, Math.round((current / total) * 100));
+          fill.style.width = pct + "%";
+          status.textContent = "Loading " + (current / 1048576).toFixed(1) + " / " + (total / 1048576).toFixed(1) + " MB";
+        }
+      },
+    }).then(() => {
+      loader.hidden = true;
+      document.getElementById("canvas").focus();
+    }, fail);
+  })();
+</script>
+
+</body>
+</html>
