@@ -109,6 +109,29 @@
     opacity: 0.75;
   }
   #loader.error #status { color: #ff8a7a; }
+  #crash {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: rgba(18, 10, 4, 0.92);
+    z-index: 3;
+  }
+  #crash h1 { margin: 0; font-family: var(--display); font-weight: 400; color: var(--sign); font-size: clamp(30px, 6vw, 56px); }
+  #crash p { margin: 0; font-size: 18px; }
+  #crash pre { margin: 0; max-width: 100%; overflow-x: auto; white-space: pre-wrap; font-size: 12px; opacity: 0.7; text-align: left; }
+  #crash button {
+    font: inherit;
+    font-size: 20px;
+    padding: 10px 28px;
+    color: var(--paper);
+    background: #5a3518;
+    border: 3px solid var(--rust);
+    border-radius: 6px;
+  }
   @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
 </style>
 
@@ -169,7 +192,7 @@
       canvasResizePolicy: 2,
       executable: "index",
       experimentalVK: false,
-      fileSizes: { "index.pck": 848152, "index.wasm": 39514754 },
+      fileSizes: { "index.pck": 857480, "index.wasm": 39514754 },
       focusCanvas: true,
       gdextensionLibs: [],
       ensureCrossOriginIsolationHeaders: false,
@@ -190,6 +213,31 @@
       console.warn("Engine feature check:", missing);
       document.querySelector(".tip").textContent = "Starting anyway. The browser check flagged: " + missing.map((m) => m.split(" - ")[0]).join(", ") + ".";
     }
+    // If the game stops after it started (a crash), show what happened instead
+    // of a frozen screen, so the player can reload and report it.
+    const recent = [];
+    const remember = (line) => {
+      recent.push(String(line));
+      if (recent.length > 6) recent.shift();
+    };
+    let crashed = false;
+    const crash = (why) => {
+      if (crashed) return;
+      crashed = true;
+      const box = document.createElement("div");
+      box.id = "crash";
+      box.innerHTML = "<div class='card'><h1>Camp lost to a bug</h1><p></p><pre></pre><button type='button'>Reload</button></div>";
+      box.querySelector("p").textContent = "The game stopped: " + why + ". Your camp upgrades are saved.";
+      box.querySelector("pre").textContent = recent.join("\n") + "\n" + navigator.userAgent;
+      box.querySelector("button").addEventListener("click", () => location.reload());
+      document.body.appendChild(box);
+    };
+    window.addEventListener("error", (e) => { remember(e.message); if (!loader.hidden) return; crash(e.message || "script error"); });
+    window.addEventListener("unhandledrejection", (e) => remember(e.reason));
+    const canvas = document.getElementById("canvas");
+    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); crash("the graphics context was lost (out of memory?)"); });
+    config.onPrintError = (...parts) => { console.error(...parts); remember(parts.join(" ")); };
+    config.onExit = (code) => { if (code !== 0) crash("exit code " + code); };
     const engine = new Engine(config);
     engine.startGame({
       onProgress: function (current, total) {
